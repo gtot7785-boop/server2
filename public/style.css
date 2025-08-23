@@ -1,54 +1,222 @@
-/* General Styles */
+/* --- THEME VARIABLES --- */
+:root {
+    --bg-color: #020a14;
+    --glow-color: #00ffff;
+    --text-color: #ffffff;
+    --danger-color: #ff4848;
+    --asteroid-color: #8B4513;
+    --pickup-color: #00ff00;
+    --delivery-color: #0055ff;
+    --pirate-color: #ff00ff;
+    --dreadnought-color: #ffa500;
+    --mine-color: #ffcc00;
+    --emp-field-color: #9600ff;
+}
+body.theme-iceField {
+    --bg-color: #0d1a2f;
+    --glow-color: #a3d5ff;
+    --asteroid-color: #e0f7fa;
+    --pickup-color: #a7ffeb;
+    --pirate-color: #e1bee7;
+}
+body.theme-redGiant {
+    --bg-color: #2b0c06;
+    --glow-color: #ff8a65;
+    --danger-color: #ff5252;
+    --pirate-color: #ff6e40;
+}
+body.theme-nebula {
+    --bg-color: #1a0f2b;
+    --glow-color: #d1c4e9;
+    --pirate-color: #ce93d8;
+    --emp-field-color: #f48fb1;
+}
+
+/* --- GENERAL STYLES --- */
 body {
-    background-color: #000;
-    color: #0ff;
-    font-family: 'Orbitron', sans-serif; /* Recommended to add this font from Google Fonts */
+    background-color: var(--bg-color);
+    font-family: 'Orbitron', sans-serif;
     margin: 0;
     overflow: hidden;
+    transition: background-color 1s ease;
+}
+
+/* --- UI LAYERS & SCREENS --- */
+#ui-layer, #engineer-view {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+    color: var(--glow-color);
+    z-index: 10;
+}
+.ui-screen, .lobby-screen {
+    display: none; /* Hidden by default */
+    flex-direction: column;
+    align-items: center;
+    background: rgba(2, 10, 20, 0.85);
+    border: 2px solid var(--glow-color);
+    padding: 30px;
+    text-align: center;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 0 20px var(--glow-color);
+    animation: fadeIn 0.5s ease-in-out;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
 }
 
-/* Role Selection */
-#role-selection { text-align: center; }
-.button {
-    display: inline-block; padding: 15px 30px; margin: 10px; border: 2px solid #0ff;
-    text-decoration: none; color: #0ff; transition: all 0.3s;
+#countdown-screen { font-size: 10em; font-weight: bold; }
+h1 { margin-top: 0; font-size: 2em; }
+p { max-width: 400px; line-height: 1.6; }
+
+.ready-btn {
+    background: transparent;
+    border: 2px solid var(--glow-color);
+    color: var(--glow-color);
+    padding: 15px 40px;
+    font-size: 1.5em;
+    font-family: inherit;
+    cursor: pointer;
+    margin-top: 20px;
+    transition: all 0.3s;
 }
-.button:hover { background-color: #0ff; color: #000; box-shadow: 0 0 15px #0ff; }
+.ready-btn:hover {
+    background: var(--glow-color);
+    color: var(--bg-color);
+    box-shadow: 0 0 15px var(--glow-color);
+}
+.ready-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Views */
-#pilot-view, #engineer-view { display: none; }
-#pilot-view { border: 2px solid #0ff; }
+/* --- PILOT VIEW & HUD --- */
+#game-container { position: relative; }
+#pilot-view { border: 2px solid var(--glow-color); display: none; }
+#pilot-hud {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: calc(100% - 20px);
+    display: none;
+    justify-content: space-between;
+    color: var(--text-color);
+    font-size: 1.5em;
+    text-shadow: 0 0 5px var(--glow-color);
+    z-index: 5;
+    pointer-events: none;
+}
+.shake { animation: shake 0.5s; }
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
 
-/* Engineer View */
+/* --- EVENT NOTIFICATION --- */
+#event-notification {
+    position: absolute;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--danger-color);
+    color: #fff;
+    padding: 10px 30px;
+    font-size: 1.5em;
+    text-align: center;
+    z-index: 100;
+    text-shadow: 0 0 5px #000;
+    box-shadow: 0 0 20px var(--danger-color);
+    transition: top 0.5s ease-in-out;
+}
+#event-notification.visible { top: 20px; }
+
+/* --- ENGINEER VIEW --- */
 #engineer-view {
     display: none;
     flex-direction: column;
     width: 90%;
     max-width: 400px;
-    background-color: #050a0f;
-    border: 2px solid #0ff;
+    background-color: rgba(2, 10, 20, 0.9);
+    border: 2px solid var(--glow-color);
     padding: 20px;
-    box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+    box-shadow: 0 0 20px var(--glow-color);
 }
-h2 { text-align: center; letter-spacing: 3px; margin-top: 0; }
+#engineer-hud { font-size: 1.2em; text-align: center; margin-bottom: 15px; }
+.info-panel {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    background: rgba(0,0,0,0.3);
+    padding: 10px;
+    border: 1px solid var(--glow-color);
+}
 .status-bars .bar { margin-bottom: 10px; }
 .bar span { display: block; margin-bottom: 5px; }
-progress { width: 100%; height: 20px; -webkit-appearance: none; appearance: none; }
-progress::-webkit-progress-bar { background-color: #333; }
-progress::-webkit-progress-value { background-color: #0ff; transition: width 0.1s; }
-#health-bar::-webkit-progress-value { background-color: #f00; }
+progress {
+    width: 100%;
+    height: 20px;
+    -webkit-appearance: none;
+    appearance: none;
+    border: none;
+}
+progress::-webkit-progress-bar { background-color: rgba(0,0,0,0.3); border: 1px solid var(--glow-color);}
+progress::-webkit-progress-value { background-color: var(--glow-color); transition: width 0.1s; }
+#health-bar::-webkit-progress-value { background-color: var(--danger-color); }
 
 .slider-group { margin-bottom: 15px; }
 .slider-group label { display: flex; justify-content: space-between; margin-bottom: 5px; }
 input[type="range"] {
-    width: 100%; -webkit-appearance: none; appearance: none;
-    height: 8px; background: #333; cursor: pointer;
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 8px;
+    background: rgba(0,0,0,0.3);
+    outline: none;
+    border: 1px solid var(--glow-color);
+    cursor: pointer;
 }
 input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none;
-    width: 20px; height: 20px; background: #0ff; border-radius: 50%;
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: var(--glow-color);
+    border-radius: 50%;
+}
+
+/* Solar Flare Effect for Engineer */
+#solar-flare-effect {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(255,255,255,0.1) 2px, rgba(0,0,0,0) 4px);
+    display: none;
+    z-index: 200;
+    animation: static 1s linear infinite;
+    pointer-events: none;
+}
+@keyframes static {
+  0% { background-position-y: 0; }
+  100% { background-position-y: -100px; }
+}
+.glitch-line {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: var(--glow-color);
+    animation: glitch-line 1.5s linear infinite;
+}
+.glitch-line:nth-child(2) { top: 20%; animation-delay: 0.3s; }
+.glitch-line:nth-child(3) { top: 70%; animation-delay: 0.8s; }
+@keyframes glitch-line {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
 }

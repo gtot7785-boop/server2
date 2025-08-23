@@ -4,21 +4,53 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Cosmic Courier</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <canvas id="pilot-view"></canvas>
+    <div id="game-container">
+        <canvas id="pilot-view"></canvas>
+        <div id="pilot-hud">
+            <div>РІВЕНЬ <span id="pilot-level">1</span>: <span id="pilot-level-name"></span></div>
+            <div>ЗАВДАННЯ: <span id="pilot-objective"></span></div>
+            <div>ОЧКИ: <span id="pilot-score">0</span></div>
+        </div>
+    </div>
 
+    <div id="ui-layer">
+        <div id="event-notification">ПОПЕРЕДЖЕННЯ: АСТЕРОЇДНИЙ ДОЩ!</div>
+
+        <div id="pilot-lobby" class="lobby-screen">
+            <h1>РОЛЬ: ПІЛОТ</h1>
+            <p><strong>ЗАВДАННЯ:</strong> Керуйте кораблем (WASD), ухиляйтесь від перешкод та ведіть вогонь по ворогах (Миша). Слідкуйте за сповіщеннями про ігрові події!</p>
+            <p>Ваш Інженер керує щитами та швидкістю. Спілкуйтесь для перемоги!</p>
+            <button class="ready-btn">ГОТОВИЙ</button>
+        </div>
+        <div id="engineer-lobby" class="lobby-screen">
+            <h1>РОЛЬ: ІНЖЕНЕР</h1>
+            <p><strong>ЗАВДАННЯ:</strong> Розподіляйте енергію. Під час "Сонячного спалаху" ваш екран відключиться - попередьте Пілота заздалегідь!</p>
+            <p>Попереджайте Пілота про небезпеку та стан корабля!</p>
+            <button class="ready-btn">ГОТОВИЙ</button>
+        </div>
+
+        <div id="waiting-screen" class="ui-screen">ОЧІКУВАННЯ ДРУГОГО ГРАВЦЯ...</div>
+        <div id="countdown-screen" class="ui-screen">3</div>
+        <div id="level-complete-screen" class="ui-screen">РІВЕНЬ ПРОЙДЕНО!</div>
+        <div id="game-over-screen" class="ui-screen">GAME OVER</div>
+    </div>
+    
     <div id="engineer-view">
+        <div id="engineer-hud">РІВЕНЬ <span id="engineer-level">1</span>: <span id="engineer-level-name"></span></div>
         <div class="status-bars">
-            <div class="bar">
-                <span>КОРПУС</span>
-                <progress id="health-bar" value="100" max="100"></progress>
-            </div>
-            <div class="bar">
-                <span>ЩИТИ</span>
-                <progress id="shield-bar" value="100" max="100"></progress>
-            </div>
+            <div class="bar"><span>КОРПУС</span><progress id="health-bar" value="100" max="100"></progress></div>
+            <div class="bar"><span>ЩИТИ</span><progress id="shield-bar" value="100" max="100"></progress></div>
+        </div>
+        
+        <div class="info-panel">
+            <div>ОЧКИ: <span id="engineer-score">0</span></div>
+            <div>СТАТУС: <span id="engineer-status">Пошук вантажу</span></div>
         </div>
         
         <h2>РОЗПОДІЛ ЕНЕРГІЇ</h2>
@@ -35,6 +67,10 @@
                 <label for="weapons-slider">ЗБРОЯ <span id="weapons-value">33%</span></label>
                 <input type="range" id="weapons-slider" min="0" max="100" value="33">
             </div>
+        </div>
+        
+        <div id="solar-flare-effect">
+            <div class="glitch-line"></div><div class="glitch-line"></div><div class="glitch-line"></div>
         </div>
     </div>
 
