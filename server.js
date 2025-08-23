@@ -11,10 +11,10 @@ app.use(express.static('public'));
 
 // --- Game Constants ---
 const GAME_WIDTH = 800;
-const WORLD_HEIGHT = 5000; // Високий світ для вертикальної подорожі
-const SHIP_BASE_SPEED = 2.5; // Базова швидкість авто-прокрутки
+const WORLD_HEIGHT = 5000;
+const SHIP_BASE_SPEED = 2.5;
 const EVENT_CHANCE = 0.8;
-const EVENT_INTERVAL = 45 * 1000; // 45 секунд
+const EVENT_INTERVAL = 45 * 1000;
 
 // --- Level Definitions ---
 const LEVELS = [
@@ -39,8 +39,12 @@ let gameState = {};
 
 function broadcast(data) {
     const message = JSON.stringify(data);
-    if (players.pilot) players.pilot.ws.send(message);
-    if (players.engineer) players.engineer.ws.send(message);
+    if (players.pilot && players.pilot.ws.readyState === WebSocket.OPEN) {
+        players.pilot.ws.send(message);
+    }
+    if (players.engineer && players.engineer.ws.readyState === WebSocket.OPEN) {
+        players.engineer.ws.send(message);
+    }
 }
 
 function resetGame(level = 0) {
@@ -50,6 +54,7 @@ function resetGame(level = 0) {
 
     playerInput = { pilot: { keys: {}, mouse: { x: 400, y: 300, down: false } } };
     const levelConfig = LEVELS[level % LEVELS.length];
+    const initialScore = (level > 0 && gameState.score) ? gameState.score : 0;
 
     gameState = {
         status: 'playing',
@@ -64,7 +69,7 @@ function resetGame(level = 0) {
         projectiles: [], turretProjectiles: [], pirateProjectiles: [],
         asteroids: [], turrets: [], pirates: [], mines: [], explosions: [],
         pickupZone: { active: true }, deliveryZone: { active: false },
-        score: gameState.score || 0
+        score: initialScore
     };
 
     spawnEntities(levelConfig);
@@ -78,22 +83,26 @@ function spawnEntities(config) {
     gameState.deliveryZone.x = Math.random() * (GAME_WIDTH - 200) + 100;
     gameState.deliveryZone.y = WORLD_HEIGHT - 2500 - (Math.random() * 500);
 
-    for (let i = 0; i < config.asteroids; i++) gameState.asteroids.push({ x: Math.random() * GAME_WIDTH, y: Math.random() * (WORLD_HEIGHT - 200), size: Math.random() * 20 + 15, dx: Math.random() * 2 - 1, dy: Math.random() * 2 - 1 });
-    for (let i = 0; i < config.turrets; i++) gameState.turrets.push({ x: Math.random() * GAME_WIDTH, y: Math.random() * (WORLD_HEIGHT - 400), cooldown: 120, health: 50 });
-    for (let i = 0; i < config.pirates; i++) gameState.pirates.push({ x: Math.random() * GAME_WIDTH, y: Math.random() * (WORLD_HEIGHT - 600), cooldown: 180, health: 100, speed: 1.5, type: 'normal' });
-    for (let i = 0; i < config.dreadnoughts; i++) gameState.pirates.push({ x: Math.random() * GAME_WIDTH, y: Math.random() * (WORLD_HEIGHT - 800), cooldown: 240, health: 250, speed: 1, type: 'dreadnought' });
-    for (let i = 0; i < config.mines; i++) gameState.mines.push({ x: Math.random() * GAME_WIDTH, y: Math.random() * (WORLD_HEIGHT - 200) });
+    for (let i = 0; i < config.asteroids; i++) gameState.asteroids.push({ id: `a${i}`, x: Math.random() * GAME_WIDTH, y: Math.random() * (WORLD_HEIGHT - 200), size: Math.random() * 20 + 15, dx: Math.random() * 2 - 1, dy: Math.random() * 2 - 1 });
+    for (let i = 0; i < config.turrets; i++) gameState.turrets.push({ id: `t${i}`, x: Math.random() * GAME_WIDTH, y: Math.random() * (WORLD_HEIGHT - 400), cooldown: 120, health: 50 });
+    for (let i = 0; i < config.pirates; i++) gameState.pirates.push({ id: `p${i}`, x: Math.random() * GAME_WIDTH, y: Math.random() * (WORLD_HEIGHT - 600), cooldown: 180, health: 100, speed: 1.5, type: 'normal' });
+    for (let i = 0; i < config.dreadnoughts; i++) gameState.pirates.push({ id: `d${i}`, x: Math.random() * GAME_WIDTH, y: Math.random() * (WORLD_HEIGHT - 800), cooldown: 240, health: 250, speed: 1, type: 'dreadnought' });
+    for (let i = 0; i < config.mines; i++) gameState.mines.push({ id: `m${i}`, x: Math.random() * GAME_WIDTH, y: Math.random() * (WORLD_HEIGHT - 200) });
 }
 
 function handleDamage(damage) {
     if (gameState.ship.invincible > 0) return;
-    gameState.ship.invincible = 30;
+    gameState.ship.invincible = 30; // 0.5s invincibility frames
     if (gameState.ship.shields > 0) {
         gameState.ship.shields -= damage;
-        if (gameState.ship.shields < 0) { gameState.ship.health += gameState.ship.shields; gameState.ship.shields = 0; }
+        if (gameState.ship.shields < 0) {
+            gameState.ship.health += gameState.ship.shields; // remaining damage goes to health
+            gameState.ship.shields = 0;
+        }
     } else {
         gameState.ship.health -= damage;
     }
+    broadcast({type: 'shipHit'});
 }
 
 function triggerRandomEvent() {
@@ -160,23 +169,26 @@ function gameLoop() {
         weaponDisabled = true;
     }
     
-    // --- Ship Movement & Scrolling ---
+    // Ship Movement & Scrolling
     const enginePower = (1 + (power.engines / 50)) * engineModifier;
-    ship.y -= SHIP_BASE_SPEED; // Constant upward scroll
+    ship.y -= SHIP_BASE_SPEED;
     
     if (input.keys['w']) ship.y -= 1.5 * enginePower;
     if (input.keys['s']) ship.y += 1.5 * enginePower;
     if (input.keys['a']) ship.x -= 2 * enginePower;
     if (input.keys['d']) ship.x += 2 * enginePower;
     
-    // --- Ship Boundaries ---
+    // Ship Boundaries
     ship.x = Math.max(15, Math.min(GAME_WIDTH - 15, ship.x));
 
-    // --- Aiming ---
-    let cameraY = ship.y - 480; // Approximate camera position for aiming
+    // Invincibility Frames
+    if (ship.invincible > 0) ship.invincible--;
+    
+    // Aiming
+    let cameraY = ship.y - 480;
     ship.angle = Math.atan2(input.mouse.y - (ship.y - cameraY), input.mouse.x - ship.x);
 
-    // --- Firing ---
+    // Firing
     if (ship.weaponCooldown > 0) ship.weaponCooldown--;
     if (input.mouse.down && ship.weaponCooldown <= 0 && !weaponDisabled) {
         gameState.projectiles.push({ x: ship.x, y: ship.y, angle: ship.angle, speed: 8 });
@@ -184,20 +196,45 @@ function gameLoop() {
         ship.weaponCooldown = 10 * weaponPowerFactor;
     }
     
-    // --- Projectile Movement ---
+    // Projectile Movement
     gameState.projectiles.forEach(p => { p.x += Math.cos(p.angle) * p.speed; p.y += Math.sin(p.angle) * p.speed; });
     gameState.turretProjectiles.forEach(p => { p.x += Math.cos(p.angle) * p.speed; p.y += Math.sin(p.angle) * p.speed; });
     gameState.pirateProjectiles.forEach(p => { p.x += Math.cos(p.angle) * p.speed; p.y += Math.sin(p.angle) * p.speed; });
 
-    // --- Entity AI and Logic ---
+    // Entity AI and Logic
     gameState.asteroids.forEach(a => { a.x += a.dx; a.y += a.dy; if (a.x < 0 || a.x > GAME_WIDTH) a.dx *= -1; });
     gameState.turrets.forEach(t => { if(t.cooldown-- <= 0) { const angle = Math.atan2(ship.y-t.y, ship.x-t.x); gameState.turretProjectiles.push({x:t.x,y:t.y,angle:angle,speed:4}); t.cooldown = 120; } });
-    gameState.pirates.forEach(p => { const angle = Math.atan2(ship.y - p.y, ship.x - p.x); p.x += Math.cos(angle) * p.speed; p.y += Math.sin(angle) * p.speed; if(p.cooldown-- <= 0) { gameState.pirateProjectiles.push({x: p.x,y: p.y,angle: angle,speed: 4}); p.cooldown = 180; } });
+    gameState.pirates.forEach(p => { const angle = Math.atan2(ship.y - p.y, ship.x - p.x); p.x += Math.cos(angle) * p.speed; p.y += Math.sin(angle) * p.speed; if(p.cooldown-- <= 0) { gameState.pirateProjectiles.push({x: p.x,y: p.y,angle: angle,speed: 4}); p.cooldown = p.type === 'dreadnought' ? 240 : 180; } });
     
-    // --- Collisions ---
-    // (This section would contain all the collision checks between ship, projectiles, asteroids, etc.)
+    // Collisions
+    gameState.asteroids = gameState.asteroids.filter(a => {
+        if (isColliding(ship, a, a.size + 10)) {
+            handleDamage(20);
+            return false;
+        }
+        return true;
+    });
 
-    // --- Objective Logic ---
+    gameState.mines = gameState.mines.filter(m => {
+        if (isColliding(ship, m, 60)) {
+            gameState.explosions.push({x: m.x, y: m.y, radius: 80, life: 20});
+            if(isColliding(ship, m, 80)) handleDamage(40);
+            return false;
+        }
+        return true;
+    });
+
+    gameState.projectiles = gameState.projectiles.filter(p => {
+        let hit = false;
+        gameState.turrets = gameState.turrets.filter(t => { if(isColliding(p, t, 15)) { t.health -= 25; hit=true; return t.health > 0; } return true; });
+        gameState.pirates = gameState.pirates.filter(pirate => { if(isColliding(p, pirate, pirate.type === 'dreadnought' ? 25 : 15)) { pirate.health -= 20; hit=true; return pirate.health > 0; } return true; });
+        return !hit;
+    });
+
+    gameState.turretProjectiles = gameState.turretProjectiles.filter(p => { if (isColliding(p, ship, 15)) { handleDamage(10); return false; } return true; });
+    gameState.pirateProjectiles = gameState.pirateProjectiles.filter(p => { if (isColliding(p, ship, 15)) { handleDamage(15); return false; } return true; });
+
+    // Objective Logic
     if (gameState.pickupZone.active && !ship.hasPackage && isColliding(ship, gameState.pickupZone, 40)) {
         ship.hasPackage = true;
         gameState.pickupZone.active = false;
@@ -209,16 +246,16 @@ function gameLoop() {
         gameState.deliveriesMade++;
         gameState.pickupZone.active = true;
         gameState.deliveryZone.active = false;
-        // Spawn new zones further up
         gameState.pickupZone.y -= 1500;
         gameState.deliveryZone.y = gameState.pickupZone.y - 1500;
     }
     
-    // --- Level Completion & Game Over ---
+    // Level Completion & Game Over
     if (gameState.deliveriesMade >= gameState.levelGoal) {
         gameState.status = 'levelComplete';
         broadcast({ type: 'gameStateUpdate', state: gameState });
         clearInterval(gameInterval);
+        clearInterval(eventInterval);
         setTimeout(() => resetGame(gameState.currentLevel), 5000);
         return;
     }
@@ -226,6 +263,7 @@ function gameLoop() {
         gameState.status = 'gameOver';
         broadcast({ type: 'gameStateUpdate', state: gameState });
         clearInterval(gameInterval);
+        clearInterval(eventInterval);
         setTimeout(() => {
             if (players.pilot) players.pilot.ready = false;
             if (players.engineer) players.engineer.ready = false;

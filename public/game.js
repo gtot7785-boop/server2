@@ -55,6 +55,12 @@ ws.onmessage = (event) => {
         case 'playerDisconnect':
             showScreen(uiScreens.waiting);
             break;
+        case 'shipHit':
+            if (myRole === 'pilot') {
+                gameContainer.classList.add('shake');
+                setTimeout(() => gameContainer.classList.remove('shake'), 500);
+            }
+            break;
     }
 };
 
@@ -91,7 +97,7 @@ function handleGameStateUpdate(state) {
                 btn.disabled = false;
                 btn.textContent = "ГОТОВИЙ";
             });
-            if (state.score) {
+            if (state.score !== undefined) {
                 const lobby = myRole === 'pilot' ? uiScreens.pilotLobby : uiScreens.engineerLobby;
                 let scoreRecap = lobby.querySelector('.score-recap');
                 if (!scoreRecap) {
@@ -159,17 +165,17 @@ function setupEngineerControls() {
     }
 
     function balancePower(changedSliderId, newValue) {
+        newValue = parseInt(newValue);
         let otherKeys = Object.keys(powerState).filter(k => k !== changedSliderId);
         let oldValue = powerState[changedSliderId];
         let delta = newValue - oldValue;
-        
+
         powerState[changedSliderId] = newValue;
 
         let otherTotal = powerState[otherKeys[0]] + powerState[otherKeys[1]];
         if (otherTotal > 0) {
             let ratio0 = powerState[otherKeys[0]] / otherTotal;
             let ratio1 = powerState[otherKeys[1]] / otherTotal;
-
             powerState[otherKeys[0]] -= Math.round(delta * ratio0);
             powerState[otherKeys[1]] -= Math.round(delta * ratio1);
         } else {
@@ -182,14 +188,16 @@ function setupEngineerControls() {
                 let overflow = -powerState[key];
                 powerState[key] = 0;
                 let otherKey = Object.keys(powerState).find(k => k !== key && k !== changedSliderId);
-                if (otherKey && powerState[otherKey] > overflow) {
-                     powerState[otherKey] -= overflow;
+                if (otherKey && powerState[otherKey] >= overflow) {
+                    powerState[otherKey] -= overflow;
                 } else if(otherKey) {
-                    let anotherKey = Object.keys(powerState).find(k => k !== key && k !== otherKey);
-                    powerState[anotherKey] -= overflow;
+                    let remainingOverflow = overflow - powerState[otherKey];
+                    powerState[otherKey] = 0;
+                    let lastKey = Object.keys(powerState).find(k => k !== key && k !== otherKey);
+                    powerState[lastKey] -= remainingOverflow;
                 }
             }
-             if (powerState[key] > 100) powerState[key] = 100;
+            if (powerState[key] > 100) powerState[key] = 100;
         });
         
         let finalTotal = Object.values(powerState).reduce((a, b) => a + b, 0);
@@ -206,19 +214,68 @@ function setupEngineerControls() {
 
     Object.keys(sliders).forEach(key => {
         sliders[key].addEventListener('input', (e) => {
-            balancePower(key, parseInt(e.target.value));
+            balancePower(key, e.target.value);
         });
     });
 }
 
 function updateEngineerUI(state) {
     if (!state.ship) return;
+    document.getElementById('health-value').textContent = `${Math.round(state.ship.health)}/100`;
+    document.getElementById('shield-value').textContent = `${Math.round(state.ship.shields)}/100`;
     document.getElementById('health-bar').value = state.ship.health;
     document.getElementById('shield-bar').value = state.ship.shields;
     document.getElementById('engineer-score').textContent = state.score;
     document.getElementById('engineer-level').textContent = state.currentLevel;
     document.getElementById('engineer-level-name').textContent = state.levelName;
     document.getElementById('engineer-status').textContent = state.ship.hasPackage ? `Доставка (${state.deliveriesMade}/${state.levelGoal})` : `Пошук вантажу (${state.deliveriesMade}/${state.levelGoal})`;
+    drawMiniMap(state);
+}
+
+function drawMiniMap(state) {
+    const canvas = document.getElementById('mini-map');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const ship = state.ship;
+
+    const mapWidth = 1200;
+    const mapHeight = 900;
+    const scale = canvas.width / mapWidth;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.scale(scale, scale);
+    ctx.translate(-ship.x, -ship.y);
+
+    const drawDot = (obj, color, size) => {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(obj.x, obj.y, size / scale, 0, Math.PI * 2);
+        ctx.fill();
+    };
+    
+    if (state.pickupZone.active) drawDot(state.pickupZone, getCssVariable('--pickup-color'), 40);
+    if (state.deliveryZone.active) drawDot(state.deliveryZone, getCssVariable('--delivery-color'), 40);
+    state.asteroids.forEach(a => drawDot(a, getCssVariable('--asteroid-color'), a.size));
+    state.pirates.forEach(p => drawDot(p, p.type === 'dreadnought' ? getCssVariable('--dreadnought-color') : getCssVariable('--pirate-color'), 20));
+    state.turrets.forEach(t => drawDot(t, getCssVariable('--danger-color'), 15));
+    state.mines.forEach(m => drawDot(m, getCssVariable('--mine-color'), 10));
+    
+    ctx.fillStyle = '#fff';
+    ctx.save();
+    ctx.translate(ship.x, ship.y);
+    ctx.rotate(ship.angle);
+    ctx.beginPath();
+    ctx.moveTo(15 / scale, 0);
+    ctx.lineTo(-10 / scale, -10 / scale);
+    ctx.lineTo(-10 / scale, 10 / scale);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    
+    ctx.restore();
 }
 
 // --- PILOT LOGIC ---
@@ -252,7 +309,6 @@ function setupPilotControls() {
         
         const state = localGameState;
         
-        // Camera Logic
         const targetCameraY = state.ship.y - canvas.height * 0.8;
         cameraY += (targetCameraY - cameraY) * 0.1;
 
@@ -267,21 +323,17 @@ function setupPilotControls() {
             ctx.fillRect(0, 0, canvas.width, 5000);
         }
 
-        // Draw Zones and Events
         if (state.pickupZone.active) drawZone(state.pickupZone, getCssVariable('--pickup-color'));
         if (state.deliveryZone.active) drawZone(state.deliveryZone, getCssVariable('--delivery-color'));
         if (state.event && state.event.type === 'empField') drawZone(state.event, getCssVariable('--emp-field-color'), true);
 
-        // Draw Entities
         state.asteroids.forEach(a => drawAsteroid(a));
         state.turrets.forEach(t => drawTurret(t));
         state.mines.forEach(m => drawMine(m));
         state.pirates.forEach(p => drawPirate(p));
         
-        // Draw Ship
         drawShip(state.ship);
 
-        // Draw Projectiles
         ctx.fillStyle = '#fff';
         state.projectiles.forEach(p => ctx.fillRect(p.x - 2, p.y - 2, 4, 4));
         ctx.fillStyle = getCssVariable('--danger-color');
@@ -290,7 +342,18 @@ function setupPilotControls() {
 
         ctx.restore();
 
-        // --- Nav Arrow Logic ---
+        // Pilot HUD Bars
+        const hudY = canvas.height - 30;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(10, hudY, 200, 20);
+        ctx.fillStyle = getCssVariable('--danger-color');
+        ctx.fillRect(10, hudY, (state.ship.health / 100) * 200, 20);
+        
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(canvas.width - 210, hudY, 200, 20);
+        ctx.fillStyle = getCssVariable('--glow-color');
+        ctx.fillRect(canvas.width - 210, hudY, (state.ship.shields / 100) * 200, 20);
+
         const ship = state.ship;
         let target = null;
         if (ship.hasPackage && state.deliveryZone.active) {
@@ -315,62 +378,12 @@ function setupPilotControls() {
         requestAnimationFrame(draw);
     }
     
-    // --- Drawing Functions ---
-    function drawZone(zone, color, isFilled = false) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(zone.x, zone.y, 40, 0, Math.PI * 2);
-        ctx.stroke();
-        if(isFilled){
-            ctx.fillStyle = color.replace(')', ', 0.2)').replace('rgb', 'rgba');
-            ctx.fill();
-        }
-    }
-    function drawAsteroid(a) {
-        ctx.fillStyle = getCssVariable('--asteroid-color');
-        ctx.beginPath();
-        ctx.arc(a.x, a.y, a.size, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    function drawTurret(t) {
-        ctx.fillStyle = getCssVariable('--danger-color');
-        ctx.beginPath();
-        ctx.arc(t.x, t.y, 15, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    function drawMine(m) {
-        ctx.fillStyle = getCssVariable('--mine-color');
-        ctx.beginPath();
-        ctx.arc(m.x, m.y, 8, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    function drawPirate(p) {
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(Math.atan2(localGameState.ship.y - p.y, localGameState.ship.x - p.x) + Math.PI/2);
-        if (p.type === 'dreadnought') {
-            ctx.fillStyle = getCssVariable('--dreadnought-color');
-            ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(15, 15); ctx.lineTo(-15, 15); ctx.closePath(); ctx.fill();
-        } else {
-            ctx.fillStyle = getCssVariable('--pirate-color');
-            ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(8, 10); ctx.lineTo(-8, 10); ctx.closePath(); ctx.fill();
-        }
-        ctx.restore();
-    }
-    function drawShip(ship) {
-        ctx.save();
-        ctx.translate(ship.x, ship.y);
-        ctx.rotate(ship.angle);
-        ctx.fillStyle = ship.hasPackage ? '#ff0' : getCssVariable('--glow-color');
-        ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(-10, -10); ctx.lineTo(-10, 10); ctx.closePath(); ctx.fill();
-        ctx.restore();
-        if (ship.shields > 0) {
-            ctx.strokeStyle = `rgba(0, 255, 255, ${ship.shields / 100})`;
-            ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.arc(ship.x, ship.y, 25, 0, Math.PI * 2); ctx.stroke();
-        }
-    }
+    function drawZone(zone, color, isFilled = false) { ctx.strokeStyle=color; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(zone.x, zone.y, 40, 0, Math.PI*2); ctx.stroke(); if(isFilled){ctx.fillStyle=color.replace(')',', 0.2)').replace('rgb','rgba'); ctx.fill();} }
+    function drawAsteroid(a) { ctx.fillStyle=getCssVariable('--asteroid-color'); ctx.beginPath(); ctx.arc(a.x, a.y, a.size, 0, Math.PI*2); ctx.fill(); }
+    function drawTurret(t) { ctx.fillStyle=getCssVariable('--danger-color'); ctx.beginPath(); ctx.arc(t.x, t.y, 15, 0, Math.PI*2); ctx.fill(); }
+    function drawMine(m) { ctx.fillStyle=getCssVariable('--mine-color'); ctx.beginPath(); ctx.arc(m.x, m.y, 8, 0, Math.PI*2); ctx.fill(); }
+    function drawPirate(p) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(localGameState.ship.y-p.y, localGameState.ship.x-p.x)+Math.PI/2); if (p.type==='dreadnought') { ctx.fillStyle=getCssVariable('--dreadnought-color'); ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(15,15); ctx.lineTo(-15,15); ctx.closePath(); ctx.fill(); } else { ctx.fillStyle=getCssVariable('--pirate-color'); ctx.beginPath(); ctx.moveTo(0,-12); ctx.lineTo(8,10); ctx.lineTo(-8,10); ctx.closePath(); ctx.fill(); } ctx.restore(); }
+    function drawShip(ship) { ctx.save(); ctx.translate(ship.x, ship.y); ctx.rotate(ship.angle); ctx.fillStyle=ship.hasPackage?'#ff0':getCssVariable('--glow-color'); ctx.beginPath(); ctx.moveTo(15,0); ctx.lineTo(-10,-10); ctx.lineTo(-10,10); ctx.closePath(); ctx.fill(); ctx.restore(); if (ship.shields>0) { ctx.strokeStyle=`rgba(0, 255, 255, ${ship.shields/100})`; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(ship.x, ship.y, 25, 0, Math.PI*2); ctx.stroke(); } }
     draw();
 }
 
