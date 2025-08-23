@@ -91,12 +91,22 @@ function handleGameStateUpdate(state) {
                 btn.disabled = false;
                 btn.textContent = "ГОТОВИЙ";
             });
+            if (state.score) {
+                const lobby = myRole === 'pilot' ? uiScreens.pilotLobby : uiScreens.engineerLobby;
+                let scoreRecap = lobby.querySelector('.score-recap');
+                if (!scoreRecap) {
+                    scoreRecap = document.createElement('p');
+                    scoreRecap.className = 'score-recap';
+                    lobby.appendChild(scoreRecap);
+                }
+                scoreRecap.textContent = `Останній рахунок: ${state.score}`;
+            }
             break;
         case 'playing':
             showScreen(null);
             if (myRole === 'pilot') {
                 pilotView.style.display = 'block';
-                uiScreens.pilotHud.style.display = 'flex';
+                uiScreens.pilotHud.style.display = 'block';
                 updatePilotHud(state);
             } else {
                 engineerView.style.display = 'flex';
@@ -105,7 +115,7 @@ function handleGameStateUpdate(state) {
             break;
         case 'levelComplete':
             showScreen(uiScreens.levelComplete);
-            uiScreens.levelComplete.textContent = `РІВЕНЬ ${state.currentLevel} ПРОЙДЕНО!`;
+            uiScreens.levelComplete.textContent = `РІВЕНЬ ${state.currentLevel - 1} ПРОЙДЕНО!`;
             break;
         case 'gameOver':
             showScreen(uiScreens.gameOver);
@@ -116,7 +126,7 @@ function handleGameStateUpdate(state) {
 function initializeRole(role) {
     if (role === 'pilot') setupPilotControls();
     if (role === 'engineer') setupEngineerControls();
-    
+
     document.querySelectorAll('.ready-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             ws.send(JSON.stringify({ type: 'playerReady' }));
@@ -128,8 +138,79 @@ function initializeRole(role) {
 
 // --- ENGINEER LOGIC ---
 function setupEngineerControls() {
-    // ... (code from previous response remains the same)
+    const sliders = {
+        shields: document.getElementById('shields-slider'),
+        engines: document.getElementById('engines-slider'),
+        weapons: document.getElementById('weapons-slider'),
+    };
+    const values = {
+        shields: document.getElementById('shields-value'),
+        engines: document.getElementById('engines-value'),
+        weapons: document.getElementById('weapons-value'),
+    };
+    let powerState = { shields: 34, engines: 33, weapons: 33 };
+
+    function updateUIAndSend() {
+        Object.keys(powerState).forEach(key => {
+            sliders[key].value = powerState[key];
+            values[key].textContent = `${powerState[key]}%`;
+        });
+        ws.send(JSON.stringify({ type: 'engineerUpdate', power: powerState }));
+    }
+
+    function balancePower(changedSliderId, newValue) {
+        let otherKeys = Object.keys(powerState).filter(k => k !== changedSliderId);
+        let oldValue = powerState[changedSliderId];
+        let delta = newValue - oldValue;
+        
+        powerState[changedSliderId] = newValue;
+
+        let otherTotal = powerState[otherKeys[0]] + powerState[otherKeys[1]];
+        if (otherTotal > 0) {
+            let ratio0 = powerState[otherKeys[0]] / otherTotal;
+            let ratio1 = powerState[otherKeys[1]] / otherTotal;
+
+            powerState[otherKeys[0]] -= Math.round(delta * ratio0);
+            powerState[otherKeys[1]] -= Math.round(delta * ratio1);
+        } else {
+            powerState[otherKeys[0]] -= Math.floor(delta / 2);
+            powerState[otherKeys[1]] -= Math.ceil(delta / 2);
+        }
+
+        Object.keys(powerState).forEach(key => {
+            if (powerState[key] < 0) {
+                let overflow = -powerState[key];
+                powerState[key] = 0;
+                let otherKey = Object.keys(powerState).find(k => k !== key && k !== changedSliderId);
+                if (otherKey && powerState[otherKey] > overflow) {
+                     powerState[otherKey] -= overflow;
+                } else if(otherKey) {
+                    let anotherKey = Object.keys(powerState).find(k => k !== key && k !== otherKey);
+                    powerState[anotherKey] -= overflow;
+                }
+            }
+             if (powerState[key] > 100) powerState[key] = 100;
+        });
+        
+        let finalTotal = Object.values(powerState).reduce((a, b) => a + b, 0);
+        let correction = 100 - finalTotal;
+        powerState[changedSliderId] += correction;
+        
+        Object.keys(powerState).forEach(key => {
+            if (powerState[key] < 0) powerState[key] = 0;
+            if (powerState[key] > 100) powerState[key] = 100;
+        });
+
+        updateUIAndSend();
+    }
+
+    Object.keys(sliders).forEach(key => {
+        sliders[key].addEventListener('input', (e) => {
+            balancePower(key, parseInt(e.target.value));
+        });
+    });
 }
+
 function updateEngineerUI(state) {
     if (!state.ship) return;
     document.getElementById('health-bar').value = state.ship.health;
@@ -146,6 +227,7 @@ function setupPilotControls() {
     const ctx = canvas.getContext('2d');
     canvas.width = 800; canvas.height = 600;
 
+    const navArrow = document.getElementById('nav-arrow');
     let input = { keys: {}, mouse: { x: 400, y: 300, down: false } };
     document.addEventListener('keydown', e => input.keys[e.key.toLowerCase()] = true);
     document.addEventListener('keyup', e => input.keys[e.key.toLowerCase()] = false);
@@ -163,18 +245,31 @@ function setupPilotControls() {
         }
     }, 1000 / 30);
 
-    function draw() {
-        ctx.fillStyle = getCssVariable('--bg-color');
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        if (!localGameState.ship) { requestAnimationFrame(draw); return; }
+    let cameraY = 0;
 
+    function draw() {
+        if (!localGameState.ship) { requestAnimationFrame(draw); return; }
+        
         const state = localGameState;
         
-        // Draw Zones
+        // Camera Logic
+        const targetCameraY = state.ship.y - canvas.height * 0.8;
+        cameraY += (targetCameraY - cameraY) * 0.1;
+
+        ctx.save();
+        ctx.translate(0, -cameraY);
+
+        ctx.fillStyle = getCssVariable('--bg-color');
+        ctx.fillRect(0, cameraY, canvas.width, canvas.height);
+
+        if (state.theme === 'nebula') {
+            ctx.fillStyle = 'rgba(150, 100, 200, 0.15)';
+            ctx.fillRect(0, 0, canvas.width, 5000);
+        }
+
+        // Draw Zones and Events
         if (state.pickupZone.active) drawZone(state.pickupZone, getCssVariable('--pickup-color'));
         if (state.deliveryZone.active) drawZone(state.deliveryZone, getCssVariable('--delivery-color'));
-
-        // Draw Event Visuals
         if (state.event && state.event.type === 'empField') drawZone(state.event, getCssVariable('--emp-field-color'), true);
 
         // Draw Entities
@@ -193,9 +288,34 @@ function setupPilotControls() {
         state.turretProjectiles.forEach(p => ctx.fillRect(p.x - 2, p.y - 2, 4, 4));
         state.pirateProjectiles.forEach(p => ctx.fillRect(p.x - 2, p.y - 2, 4, 4));
 
+        ctx.restore();
+
+        // --- Nav Arrow Logic ---
+        const ship = state.ship;
+        let target = null;
+        if (ship.hasPackage && state.deliveryZone.active) {
+            target = state.deliveryZone;
+        } else if (!ship.hasPackage && state.pickupZone.active) {
+            target = state.pickupZone;
+        }
+
+        if (target) {
+            const angleToTarget = Math.atan2(target.y - ship.y, target.x - ship.x);
+            const shipScreenX = ship.x;
+            const shipScreenY = ship.y - cameraY;
+            const arrowDist = 60;
+            navArrow.style.left = `${shipScreenX + Math.cos(angleToTarget) * arrowDist}px`;
+            navArrow.style.top = `${shipScreenY + Math.sin(angleToTarget) * arrowDist}px`;
+            navArrow.style.transform = `translate(-50%, -50%) rotate(${angleToTarget + Math.PI / 2}rad)`;
+            navArrow.style.display = 'block';
+        } else {
+            navArrow.style.display = 'none';
+        }
+
         requestAnimationFrame(draw);
     }
     
+    // --- Drawing Functions ---
     function drawZone(zone, color, isFilled = false) {
         ctx.strokeStyle = color;
         ctx.lineWidth = 3;
@@ -228,13 +348,13 @@ function setupPilotControls() {
     function drawPirate(p) {
         ctx.save();
         ctx.translate(p.x, p.y);
-        ctx.rotate(Math.atan2(localGameState.ship.y - p.y, localGameState.ship.x - p.x));
+        ctx.rotate(Math.atan2(localGameState.ship.y - p.y, localGameState.ship.x - p.x) + Math.PI/2);
         if (p.type === 'dreadnought') {
             ctx.fillStyle = getCssVariable('--dreadnought-color');
-            ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(-15, -15); ctx.lineTo(-10, 0); ctx.lineTo(-15, 15); ctx.closePath(); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(15, 15); ctx.lineTo(-15, 15); ctx.closePath(); ctx.fill();
         } else {
             ctx.fillStyle = getCssVariable('--pirate-color');
-            ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, -8); ctx.lineTo(-8, 8); ctx.closePath(); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(8, 10); ctx.lineTo(-8, 10); ctx.closePath(); ctx.fill();
         }
         ctx.restore();
     }
