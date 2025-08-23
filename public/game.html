@@ -3,16 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Quantum Rift - Game</title>
+    <title>Cosmic Courier</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <canvas id="operative-view"></canvas>
+    <canvas id="pilot-view"></canvas>
 
-    <div id="hacker-view">
-        <h1>Hacker Terminal</h1>
-        <div id="hacker-log">Чекаємо на дані від оперативника...</div>
-        <button id="unlock-door-btn" disabled>Зламати двері [A7]</button>
+    <div id="engineer-view">
+        <div class="status-bars">
+            <div class="bar">
+                <span>КОРПУС</span>
+                <progress id="health-bar" value="100" max="100"></progress>
+            </div>
+            <div class="bar">
+                <span>ЩИТИ</span>
+                <progress id="shield-bar" value="100" max="100"></progress>
+            </div>
+        </div>
+        
+        <h2>РОЗПОДІЛ ЕНЕРГІЇ</h2>
+        <div class="sliders">
+            <div class="slider-group">
+                <label for="shields-slider">ЩИТИ <span id="shields-value">34%</span></label>
+                <input type="range" id="shields-slider" min="0" max="100" value="34">
+            </div>
+            <div class="slider-group">
+                <label for="engines-slider">ДВИГУНИ <span id="engines-value">33%</span></label>
+                <input type="range" id="engines-slider" min="0" max="100" value="33">
+            </div>
+            <div class="slider-group">
+                <label for="weapons-slider">ЗБРОЯ <span id="weapons-value">33%</span></label>
+                <input type="range" id="weapons-slider" min="0" max="100" value="33">
+            </div>
+        </div>
     </div>
 
     <script src="game.js"></script>

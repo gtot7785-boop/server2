@@ -1,54 +1,54 @@
+/* General Styles */
 body {
-    font-family: 'Courier New', Courier, monospace;
-    background-color: #0a0a0a;
-    color: #00ff41;
+    background-color: #000;
+    color: #0ff;
+    font-family: 'Orbitron', sans-serif; /* Recommended to add this font from Google Fonts */
+    margin: 0;
+    overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
-    margin: 0;
-    overflow: hidden;
 }
+
+/* Role Selection */
 #role-selection { text-align: center; }
 .button {
-    display: inline-block;
-    padding: 15px 30px;
-    margin: 10px;
-    border: 2px solid #00ff41;
-    text-decoration: none;
-    color: #00ff41;
-    font-size: 1.2em;
-    transition: background-color 0.3s, color 0.3s;
+    display: inline-block; padding: 15px 30px; margin: 10px; border: 2px solid #0ff;
+    text-decoration: none; color: #0ff; transition: all 0.3s;
 }
-.button:hover { background-color: #00ff41; color: #0a0a0a; }
+.button:hover { background-color: #0ff; color: #000; box-shadow: 0 0 15px #0ff; }
 
-/* Сховати всі елементи спочатку */
-#operative-view, #hacker-view { display: none; }
-canvas { background-color: #1a1a1a; border: 1px solid #00ff41; }
+/* Views */
+#pilot-view, #engineer-view { display: none; }
+#pilot-view { border: 2px solid #0ff; }
 
-#hacker-view {
+/* Engineer View */
+#engineer-view {
+    display: none;
+    flex-direction: column;
     width: 90%;
     max-width: 400px;
-    border: 2px solid #00ff41;
+    background-color: #050a0f;
+    border: 2px solid #0ff;
     padding: 20px;
-    text-align: center;
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
 }
-#hacker-log {
-    background-color: #1a1a1a;
-    padding: 10px;
-    height: 100px;
-    margin-bottom: 20px;
-    overflow-y: auto;
+h2 { text-align: center; letter-spacing: 3px; margin-top: 0; }
+.status-bars .bar { margin-bottom: 10px; }
+.bar span { display: block; margin-bottom: 5px; }
+progress { width: 100%; height: 20px; -webkit-appearance: none; appearance: none; }
+progress::-webkit-progress-bar { background-color: #333; }
+progress::-webkit-progress-value { background-color: #0ff; transition: width 0.1s; }
+#health-bar::-webkit-progress-value { background-color: #f00; }
+
+.slider-group { margin-bottom: 15px; }
+.slider-group label { display: flex; justify-content: space-between; margin-bottom: 5px; }
+input[type="range"] {
+    width: 100%; -webkit-appearance: none; appearance: none;
+    height: 8px; background: #333; cursor: pointer;
 }
-#hacker-view button {
-    width: 100%;
-    padding: 20px;
-    font-size: 1.5em;
-    background-color: transparent;
-    border: 2px solid #00ff41;
-    color: #00ff41;
-}
-#hacker-view button:disabled {
-    border-color: #555;
-    color: #555;
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 20px; height: 20px; background: #0ff; border-radius: 50%;
 }
