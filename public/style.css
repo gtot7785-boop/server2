@@ -1,244 +1,101 @@
-/* --- THEME VARIABLES --- */
-:root {
-    --bg-color: #020a14;
-    --glow-color: #00ffff;
-    --text-color: #ffffff;
-    --danger-color: #ff4848;
-    --asteroid-color: #8B4513;
-    --pickup-color: #00ff00;
-    --delivery-color: #0055ff;
-    --pirate-color: #ff00ff;
-    --dreadnought-color: #ffa500;
-    --mine-color: #ffcc00;
-    --emp-field-color: #9600ff;
-}
-body.theme-iceField {
-    --bg-color: #0d1a2f;
-    --glow-color: #a3d5ff;
-    --asteroid-color: #e0f7fa;
-    --pickup-color: #a7ffeb;
-    --pirate-color: #e1bee7;
-}
-body.theme-redGiant {
-    --bg-color: #2b0c06;
-    --glow-color: #ff8a65;
-    --danger-color: #ff5252;
-    --pirate-color: #ff6e40;
-}
-body.theme-nebula {
-    --bg-color: #1a0f2b;
-    --glow-color: #d1c4e9;
-    --pirate-color: #ce93d8;
-    --emp-field-color: #f48fb1;
+{ box-sizing: border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+programOl.innerHTML = '';
+currentProgram.forEach((c, i) => {
+const li = document.createElement('li');
+li.textContent = c.type === 'IF_ENEMY_AHEAD' ? `IF_ENEMY_AHEAD then ${c.then} else ${c.else}` : c.type;
+li.style.opacity = 0.9;
+programOl.appendChild(li);
+});
 }
 
-/* --- GENERAL STYLES --- */
-body {
-    background-color: var(--bg-color);
-    font-family: 'Orbitron', sans-serif;
-    margin: 0;
-    overflow: hidden;
-    transition: background-color 1s ease;
+
+// Рендер сетки (общая)
+function drawGrid(ctx, w, h, cw, ch) {
+ctx.clearRect(0, 0, w*cw, h*ch);
+ctx.fillStyle = '#0b1220';
+ctx.fillRect(0, 0, w*cw, h*ch);
+ctx.globalAlpha = 0.15;
+ctx.strokeStyle = '#94a3b8';
+for (let x = 0; x <= w; x++) {
+ctx.beginPath();
+ctx.moveTo(x*cw, 0);
+ctx.lineTo(x*cw, h*ch);
+ctx.stroke();
+}
+for (let y = 0; y <= h; y++) {
+ctx.beginPath();
+ctx.moveTo(0, y*ch);
+ctx.lineTo(w*cw, y*ch);
+ctx.stroke();
+}
+ctx.globalAlpha = 1;
 }
 
-/* --- UI LAYERS & SCREENS --- */
-#ui-layer, #engineer-view {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: var(--glow-color);
-    z-index: 10;
-}
-.ui-screen, .lobby-screen {
-    display: none; /* Hidden by default */
-    flex-direction: column;
-    align-items: center;
-    background: rgba(2, 10, 20, 0.85);
-    border: 2px solid var(--glow-color);
-    padding: 30px;
-    text-align: center;
-    backdrop-filter: blur(5px);
-    box-shadow: 0 0 20px var(--glow-color);
-    animation: fadeIn 0.5s ease-in-out;
-}
-@keyframes fadeIn {
-    from { opacity: 0; transform: scale(0.9); }
-    to { opacity: 1; transform: scale(1); }
+
+// Превью арены в фазе программирования (статично)
+function renderProgrammingPreview() {
+const cw = Math.floor(cvProg.width / ARENA_W);
+const ch = Math.floor(cvProg.height / ARENA_H);
+drawGrid(ctxProg, ARENA_W, ARENA_H, cw, ch);
 }
 
-#countdown-screen { font-size: 10em; font-weight: bold; }
-h1 { margin-top: 0; font-size: 2em; }
-p { max-width: 400px; line-height: 1.6; }
 
-.ready-btn {
-    background: transparent;
-    border: 2px solid var(--glow-color);
-    color: var(--glow-color);
-    padding: 15px 40px;
-    font-size: 1.5em;
-    font-family: inherit;
-    cursor: pointer;
-    margin-top: 20px;
-    transition: all 0.3s;
-}
-.ready-btn:hover {
-    background: var(--glow-color);
-    color: var(--bg-color);
-    box-shadow: 0 0 15px var(--glow-color);
-}
-.ready-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* --- PILOT VIEW & HUD --- */
-#game-container { position: relative; }
-#pilot-view { border: 2px solid var(--glow-color); display: none; }
-#pilot-hud {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: none;
-    pointer-events: none;
-    z-index: 5;
-}
-.hud-item {
-    color: var(--text-color);
-    font-size: 1.5em;
-    text-shadow: 0 0 5px var(--glow-color);
-    position: absolute;
-}
-.hud-item:nth-child(2) { top: 10px; left: 10px; } /* Рівень */
-.hud-item:nth-child(3) { top: 10px; right: 10px; } /* Завдання */
-.hud-item:nth-child(4) { bottom: 10px; left: 10px; } /* Очки */
+// Рендер во время боя
+socket.on('state', ({ tick, bots }) => {
+setPhase('running');
+const cw = Math.floor(cvRun.width / ARENA_W);
+const ch = Math.floor(cvRun.height / ARENA_H);
+drawGrid(ctxRun, ARENA_W, ARENA_H, cw, ch);
 
 
-/* --- Nav Arrow --- */
-#nav-arrow {
-    width: 0;
-    height: 0;
-    border-left: 15px solid transparent;
-    border-right: 15px solid transparent;
-    border-bottom: 25px solid var(--glow-color);
-    position: absolute;
-    /* Позиція буде оновлюватися через JS */
-    transition: transform 0.2s linear;
-    filter: drop-shadow(0 0 5px var(--glow-color));
-    display: none;
-}
+bots.forEach(b => {
+const x = b.x * cw;
+const y = b.y * ch;
+ctxRun.globalAlpha = b.alive ? 1 : 0.3;
+ctxRun.fillStyle = b.color;
+ctxRun.fillRect(x+2, y+2, cw-4, ch-4);
 
-.shake { animation: shake 0.5s; }
-@keyframes shake {
-  10%, 90% { transform: translate3d(-1px, 0, 0); }
-  20%, 80% { transform: translate3d(2px, 0, 0); }
-  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-  40%, 60% { transform: translate3d(4px, 0, 0); }
-}
 
-/* --- EVENT NOTIFICATION --- */
-#event-notification {
-    position: absolute;
-    top: -100px;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: var(--danger-color);
-    color: #fff;
-    padding: 10px 30px;
-    font-size: 1.5em;
-    text-align: center;
-    z-index: 100;
-    text-shadow: 0 0 5px #000;
-    box-shadow: 0 0 20px var(--danger-color);
-    transition: top 0.5s ease-in-out;
-}
-#event-notification.visible { top: 20px; }
+// направление
+ctxRun.fillStyle = '#000';
+const cx = x + cw/2, cy = y + ch/2;
+const r = Math.min(cw, ch)/4;
+let dx=0, dy=0;
+if (b.dir === 0) dy = -r; else if (b.dir === 1) dx = r; else if (b.dir === 2) dy = r; else dx = -r;
+ctxRun.beginPath();
+ctxRun.arc(cx+dx, cy+dy, 3, 0, Math.PI*2);
+ctxRun.fill();
 
-/* --- ENGINEER VIEW --- */
-#engineer-view {
-    display: none;
-    flex-direction: column;
-    width: 90%;
-    max-width: 400px;
-    background-color: rgba(2, 10, 20, 0.9);
-    border: 2px solid var(--glow-color);
-    padding: 20px;
-    box-shadow: 0 0 20px var(--glow-color);
-}
-#engineer-hud { font-size: 1.2em; text-align: center; margin-bottom: 15px; }
-.info-panel {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 15px;
-    background: rgba(0,0,0,0.3);
-    padding: 10px;
-    border: 1px solid var(--glow-color);
-}
-.status-bars .bar { margin-bottom: 10px; }
-.bar span { display: block; margin-bottom: 5px; }
-progress {
-    width: 100%;
-    height: 20px;
-    -webkit-appearance: none;
-    appearance: none;
-    border: none;
-}
-progress::-webkit-progress-bar { background-color: rgba(0,0,0,0.3); border: 1px solid var(--glow-color);}
-progress::-webkit-progress-value { background-color: var(--glow-color); transition: width 0.1s; }
-#health-bar::-webkit-progress-value { background-color: var(--danger-color); }
 
-.slider-group { margin-bottom: 15px; }
-.slider-group label { display: flex; justify-content: space-between; margin-bottom: 5px; }
-input[type="range"] {
-    width: 100%;
-    -webkit-appearance: none;
-    appearance: none;
-    height: 8px;
-    background: rgba(0,0,0,0.3);
-    outline: none;
-    border: 1px solid var(--glow-color);
-    cursor: pointer;
-}
-input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 20px;
-    height: 20px;
-    background: var(--glow-color);
-    border-radius: 50%;
-}
+// имя + HP
+ctxRun.globalAlpha = 1;
+ctxRun.fillStyle = '#e2e8f0';
+ctxRun.font = '12px system-ui';
+ctxRun.fillText(`${b.name} (${b.hp})`, x+4, y+12);
+});
+});
 
-/* Solar Flare Effect for Engineer */
-#solar-flare-effect {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(255,255,255,0.1) 2px, rgba(0,0,0,0) 4px);
-    display: none;
-    z-index: 200;
-    animation: static 1s linear infinite;
-    pointer-events: none;
-}
-@keyframes static {
-  0% { background-position-y: 0; }
-  100% { background-position-y: -100px; }
-}
-.glitch-line {
-    position: absolute;
-    left: 0;
-    width: 100%;
-    height: 2px;
-    background: var(--glow-color);
-    animation: glitch-line 1.5s linear infinite;
-}
-.glitch-line:nth-child(2) { top: 20%; animation-delay: 0.3s; }
-.glitch-line:nth-child(3) { top: 70%; animation-delay: 0.8s; }
-@keyframes glitch-line {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
-}
+
+socket.on('roundOver', ({ results }) => {
+setPhase('gameover');
+const ul = $('#results');
+ul.innerHTML = '';
+results.sort((a,b)=>b.score-a.score).forEach(r => {
+const li = document.createElement('li');
+li.textContent = `${r.name}: ${r.score}`;
+ul.appendChild(li);
+});
+});
+
+
+btnBackToLobby.onclick = () => { window.location.reload(); };
+
+
+// Полезные хуки
+socket.on('full', () => alert('Комната заполнена (макс 4).'));
+
+
+// Обновлять превью
+renderProgrammingPreview();
+window.addEventListener('resize', renderProgrammingPreview);
+})();
