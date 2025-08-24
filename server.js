@@ -1,99 +1,98 @@
-# ===== package.json =====
-{
-"name": "bitva-botov",
-"version": "1.0.0",
-"description": "Мини-игра на 4 игроков: программируемые боты. Node.js + Socket.IO",
-"main": "server.js",
-"type": "module",
-"scripts": {
-"start": "node server.js",
-"dev": "NODE_ENV=development node server.js"
-},
-"dependencies": {
-"express": "^4.19.2",
-"socket.io": "^4.7.5"
-}
-}
-
-
-# ===== server.js =====
-import express from 'express';
-import http from 'http';
-import { Server } from 'socket.io';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
+// server.js
+const express = require("express");
+const http = require("http");
+const socketIo = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = socketIo(server);
 
+const PORT = 3001; // твой порт
+const HOST = "31.42.190.29"; // твой айпи
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static("public"));
 
+let players = {};
+let roundInProgress = false;
 
-// --- Простая игра на одну комнату с максимум 4 игроками ---
-const MAX_PLAYERS = 4;
-const TICK_MS = 200;
-const ROUND_TICKS = 120; // ~24 сек при 200мс
+// Когда клиент подключается
+io.on("connection", (socket) => {
+  console.log(`Новый игрок: ${socket.id}`);
+  players[socket.id] = { id: socket.id, program: [], x: 0, y: 0, color: getRandomColor(), alive: true };
 
+  socket.emit("init", { id: socket.id, players });
 
-const ARENA_W = 24;
-const ARENA_H = 16;
+  socket.on("setProgram", (program) => {
+    if (!roundInProgress) {
+      players[socket.id].program = program;
+      console.log(`Игрок ${socket.id} загрузил программу:`, program);
+    }
+  });
 
+  socket.on("disconnect", () => {
+    console.log(`Игрок вышел: ${socket.id}`);
+    delete players[socket.id];
+  });
+});
 
-const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f'];
+// Простая логика запуска боя
+function startRound() {
+  if (roundInProgress) return;
+  roundInProgress = true;
 
+  // Позиции по центру карты
+  Object.values(players).forEach((p, i) => {
+    p.x = 100 + i * 50;
+    p.y = 100 + i * 50;
+    p.alive = true;
+  });
 
-const COMMANDS = {
-FORWARD: 'FORWARD',
-LEFT: 'LEFT',
-RIGHT: 'RIGHT',
-ATTACK: 'ATTACK',
-EVADE: 'EVADE',
-IF_ENEMY_AHEAD: 'IF_ENEMY_AHEAD' // формат: {type: IF_ENEMY_AHEAD, then: 'ATTACK', else: 'FORWARD'}
-};
+  let tick = 0;
+  const interval = setInterval(() => {
+    tick++;
+    for (const p of Object.values(players)) {
+      if (!p.alive) continue;
+      const action = p.program[tick % p.program.length];
+      if (action === "UP") p.y -= 10;
+      if (action === "DOWN") p.y += 10;
+      if (action === "LEFT") p.x -= 10;
+      if (action === "RIGHT") p.x += 10;
+      if (action === "ATTACK") {
+        // простая атака — убивает ближайшего на расстоянии < 20
+        for (const q of Object.values(players)) {
+          if (q.id !== p.id && q.alive) {
+            const dx = q.x - p.x;
+            const dy = q.y - p.y;
+            if (Math.sqrt(dx * dx + dy * dy) < 20) {
+              q.alive = false;
+              console.log(`${p.id} атаковал ${q.id}`);
+            }
+          }
+        }
+      }
+    }
 
+    io.emit("state", players);
 
-function randomSpawn(i) {
-// 4 стартовые точки по углам
-const spawns = [
-{ x: 1, y: 1, dir: 1 },
-{ x: ARENA_W - 2, y: 1, dir: 2 },
-{ x: 1, y: ARENA_H - 2, dir: 1 },
-{ x: ARENA_W - 2, y: ARENA_H - 2, dir: 2 }
-];
-return spawns[i] || { x: 2, y: 2, dir: 0 };
+    if (tick > 50) {
+      clearInterval(interval);
+      roundInProgress = false;
+      io.emit("roundOver", players);
+    }
+  }, 500);
 }
 
+setInterval(() => {
+  if (!roundInProgress && Object.keys(players).length > 1) {
+    startRound();
+  }
+}, 5000);
 
-const state = {
-phase: 'lobby', // lobby | programming | running | gameover
-players: {}, // socketId -> {id, name, colorIndex, ready, commands: [], score}
-order: [], // socketIds
-tick: 0,
-bots: {}, // socketId -> {x,y,dir,hp,alive,owner}
-walls: [] // можно добавить препятствия позже
-};
-
-
-function broadcastLobby() {
-const lobby = state.order.map((id, idx) => {
-const p = state.players[id];
-return p ? { id, idx, name: p.name, color: COLORS[p.colorIndex], ready: !!p.ready } : null;
-}).filter(Boolean);
-io.emit('lobby', { lobby, phase: state.phase });
+function getRandomColor() {
+  const colors = ["red", "blue", "green", "orange", "purple"];
+  return colors[Math.floor(Math.random() * colors.length)];
 }
 
-
-function resetRound() {
-state.tick = 0;
-state.bots = {};
-state.phase = 'programming';
-// спавним ботов
-state.order.forEach((id, i) => {
-</html>
+server.listen(PORT, HOST, () => {
+  console.log(`Сервер запущен на http://${HOST}:${PORT}`);
+});

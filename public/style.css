@@ -1,101 +1,33 @@
-{ box-sizing: border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-programOl.innerHTML = '';
-currentProgram.forEach((c, i) => {
-const li = document.createElement('li');
-li.textContent = c.type === 'IF_ENEMY_AHEAD' ? `IF_ENEMY_AHEAD then ${c.then} else ${c.else}` : c.type;
-li.style.opacity = 0.9;
-programOl.appendChild(li);
-});
+body {
+  font-family: Arial, sans-serif;
+  text-align: center;
+  background: #f0f0f0;
 }
 
-
-// Рендер сетки (общая)
-function drawGrid(ctx, w, h, cw, ch) {
-ctx.clearRect(0, 0, w*cw, h*ch);
-ctx.fillStyle = '#0b1220';
-ctx.fillRect(0, 0, w*cw, h*ch);
-ctx.globalAlpha = 0.15;
-ctx.strokeStyle = '#94a3b8';
-for (let x = 0; x <= w; x++) {
-ctx.beginPath();
-ctx.moveTo(x*cw, 0);
-ctx.lineTo(x*cw, h*ch);
-ctx.stroke();
-}
-for (let y = 0; y <= h; y++) {
-ctx.beginPath();
-ctx.moveTo(0, y*ch);
-ctx.lineTo(w*cw, y*ch);
-ctx.stroke();
-}
-ctx.globalAlpha = 1;
+h1 {
+  color: #333;
 }
 
-
-// Превью арены в фазе программирования (статично)
-function renderProgrammingPreview() {
-const cw = Math.floor(cvProg.width / ARENA_W);
-const ch = Math.floor(cvProg.height / ARENA_H);
-drawGrid(ctxProg, ARENA_W, ARENA_H, cw, ch);
+#controls {
+  margin: 10px;
 }
 
+button {
+  margin: 5px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #007bff;
+  color: white;
+  cursor: pointer;
+}
 
-// Рендер во время боя
-socket.on('state', ({ tick, bots }) => {
-setPhase('running');
-const cw = Math.floor(cvRun.width / ARENA_W);
-const ch = Math.floor(cvRun.height / ARENA_H);
-drawGrid(ctxRun, ARENA_W, ARENA_H, cw, ch);
+button:hover {
+  background: #0056b3;
+}
 
-
-bots.forEach(b => {
-const x = b.x * cw;
-const y = b.y * ch;
-ctxRun.globalAlpha = b.alive ? 1 : 0.3;
-ctxRun.fillStyle = b.color;
-ctxRun.fillRect(x+2, y+2, cw-4, ch-4);
-
-
-// направление
-ctxRun.fillStyle = '#000';
-const cx = x + cw/2, cy = y + ch/2;
-const r = Math.min(cw, ch)/4;
-let dx=0, dy=0;
-if (b.dir === 0) dy = -r; else if (b.dir === 1) dx = r; else if (b.dir === 2) dy = r; else dx = -r;
-ctxRun.beginPath();
-ctxRun.arc(cx+dx, cy+dy, 3, 0, Math.PI*2);
-ctxRun.fill();
-
-
-// имя + HP
-ctxRun.globalAlpha = 1;
-ctxRun.fillStyle = '#e2e8f0';
-ctxRun.font = '12px system-ui';
-ctxRun.fillText(`${b.name} (${b.hp})`, x+4, y+12);
-});
-});
-
-
-socket.on('roundOver', ({ results }) => {
-setPhase('gameover');
-const ul = $('#results');
-ul.innerHTML = '';
-results.sort((a,b)=>b.score-a.score).forEach(r => {
-const li = document.createElement('li');
-li.textContent = `${r.name}: ${r.score}`;
-ul.appendChild(li);
-});
-});
-
-
-btnBackToLobby.onclick = () => { window.location.reload(); };
-
-
-// Полезные хуки
-socket.on('full', () => alert('Комната заполнена (макс 4).'));
-
-
-// Обновлять превью
-renderProgrammingPreview();
-window.addEventListener('resize', renderProgrammingPreview);
-})();
+canvas {
+  border: 2px solid #333;
+  margin-top: 15px;
+  background: white;
+}

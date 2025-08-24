@@ -1,20 +1,24 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cosmic Courier - Role Selection</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <title>Битва Ботов</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="role-selection" class="lobby-screen" style="display: flex;">
-        <h1>Космічний Кур'єр</h1>
-        <p>Оберіть свою роль, щоб розпочати місію.</p>
-        <a href="game.html?role=pilot" class="ready-btn">Грати за Пілота (ПК)</a>
-        <a href="game.html?role=engineer" class="ready-btn">Грати за Інженера (Смартфон)</a>
-    </div>
+  <h1>🤖 Битва Ботов</h1>
+  <div id="controls">
+    <button onclick="addCommand('UP')">⬆ Вверх</button>
+    <button onclick="addCommand('DOWN')">⬇ Вниз</button>
+    <button onclick="addCommand('LEFT')">⬅ Влево</button>
+    <button onclick="addCommand('RIGHT')">➡ Вправо</button>
+    <button onclick="addCommand('ATTACK')">💥 Атака</button>
+    <button onclick="sendProgram()">🚀 Отправить программу</button>
+  </div>
+  <p>Программа: <span id="program"></span></p>
+  <canvas id="game" width="600" height="400"></canvas>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
 </body>
 </html>
